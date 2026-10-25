@@ -1,0 +1,30 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+# Matplotlib formatting setup
+(
+    plt.style.use("seaborn-v0_8-whitegrid")
+    if "seaborn-v0_8-whitegrid" in plt.style.available
+    else plt.style.use("fivethirtyeight")
+)
+plt.rcParams["font.size"] = 10
+
+# Load dataset
+df = pd.read_csv("netflix_titles.csv")
+#4D Scatter Plot: Data Cleaning & Preprocessing
+# 4D Scatter Plot: Data Cleaning & Preprocessing
+# First we removed the null values from columns identified by df.isnull().sum()
+df=df.dropna(subset=['date_added', 'rating', 'duration'])
+# removing words like min, season or seasons from durations column to plot 4d heatmap
+df['duration'] = df['duration'].str.extract(r'(\d+)')[0].astype(int)
+ax = df.plot.scatter(
+    x='release_year',
+    y='duration',
+    c=df['rating'].astype('category').cat.codes,
+    s=df['duration'] * 2,
+    colormap='viridis',
+    figsize=(8, 8),
+    title='Netflix 4D Analysis: Release Year vs Duration by Rating',
+)
+plt.savefig('netflix_4d_plot.png', dpi=300, bbox_inches='tight')
