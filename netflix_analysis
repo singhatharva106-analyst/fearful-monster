@@ -1,6 +1,11 @@
+
+import matplotlib.cm as cm
+import matplotlib.colors as col
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy import stats
+import matplotlib as mpl
 
 # Matplotlib formatting setup
 (
@@ -28,3 +33,90 @@ ax = df.plot.scatter(
     title='Netflix 4D Analysis: Release Year vs Duration by Rating',
 )
 plt.savefig('netflix_4d_plot.png', dpi=300, bbox_inches='tight')
+
+# PLOTTING THE UNCERTAINTY BAR CHART
+
+
+# --- Step 1: Aggregation for Bar Chart ---
+# Top Genres Filter (optional but recommended for clean X-axis)
+top_genres = df['listed_in'].value_counts().head(10).index
+df_filtered = df[df['listed_in'].isin(top_genres)]
+
+# Grouping by Genre to get Mean, Std Dev, and Count
+grouped = (
+    df_filtered.groupby('listed_in')['duration']
+    .agg(mean='mean', std='std', count='count')
+    .reset_index()
+)
+
+# --- Step 2: Calculate 95% Confidence Interval (yerr) ---
+grouped['se'] = grouped['std'] / np.sqrt(grouped['count'])
+grouped['yerr'] = 1.96 * grouped['se']
+
+# Target benchmark (e.g., overall mean of the dataset)
+target_value = df_filtered['duration'].mean()
+
+# Calculate Probabilities of Mean being > Target using CDF
+# (Ferreira et al. uncertainty visualization logic)
+grouped['prob'] = 1 - stats.norm.cdf(
+    target_value, loc=grouped['mean'], scale=grouped['se']
+)
+
+# --- Step 3: Color Mapping & Palette Inversion ---
+
+
+colormap = mpl.colormaps['RdBu_r']
+bar_colors = [colormap(p) for p in grouped['prob']]
+
+# --- Step 4: Plot Figure & Bars ---
+fig, ax = plt.subplots(figsize=(10, 6))
+
+bars = ax.bar(
+    x=grouped['listed_in'],  # Corrected parameter
+    height=grouped['mean'],  # Corrected parameter
+    yerr=grouped['yerr'],  # Corrected 95% CI vector
+    capsize=7,
+    color=bar_colors,
+    edgecolor='black',
+    alpha=0.85,
+)
+
+# Target Horizontal Benchmark Line (Scalar value)
+ax.axhline(
+    y=target_value,
+    color='green',
+    linestyle='--',
+    linewidth=2,
+    label=f'Target Average ({target_value:.1f} min)',
+)
+
+# --- Step 5: ScalarMappable for Colorbar ---
+norm = col.Normalize(vmin=0, vmax=1)
+sm = cm.ScalarMappable(cmap=colormap, norm=norm)
+sm.set_array([])
+
+cbar = plt.colorbar(sm, ax=ax, orientation='vertical', pad=0.03)
+cbar.set_label(
+    'Probability of Distribution Being Above Target',
+    fontsize=11,
+    fontweight='bold',
+)
+
+# --- Step 6: Polish ---
+ax.set_xlabel('Genre', fontsize=12, fontweight='bold')
+ax.set_ylabel(
+    'Mean Duration (min) with 95% CI', fontsize=12, fontweight='bold'
+)
+ax.set_title(
+    'Advanced Uncertainty Bar Chart: Netflix Movie Runtime vs Target',
+    fontsize=13,
+    fontweight='bold',
+)
+plt.xticks(rotation=45, ha='right')
+ax.legend(loc='upper left')
+ax.grid(axis='y', linestyle='--', alpha=0.4)
+
+plt.tight_layout()
+plt.savefig(
+    'netflix_uncertainty_plot.png', dpi=300, bbox_inches='tight'
+)
